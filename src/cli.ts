@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readHookInput } from "./read-hook-input.js";
-import { resolveOptions, getDefaultConfig } from "./config.js";
+import { resolveOptions, getDefaultConfig, getConfigCandidates } from "./config.js";
 import { applyTemplate } from "./template.js";
 import { sendNotification } from "./notify.js";
 import { detectPlatform } from "./platforms/detect.js";
@@ -18,7 +18,7 @@ function parseFlags(argv: string[]): { subcommand: string | null; flags: CliFlag
   const rest: string[] = [];
   let subcommand: string | null = null;
 
-  const SUBCOMMANDS = new Set(["init", "test", "install", "sounds"]);
+  const SUBCOMMANDS = new Set(["init", "test", "install", "uninstall", "sounds", "status"]);
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -51,11 +51,12 @@ function getRestFlag(rest: string[], flag: string): boolean {
 
 // --- Subcommands ---
 
-function cmdInit(): void {
+function cmdInit(rest: string[]): void {
+  const force = getRestFlag(rest, "--force");
   const configDir = join(homedir(), ".config", "claudify");
   const configPath = join(configDir, "config.json");
 
-  if (existsSync(configPath)) {
+  if (existsSync(configPath) && !force) {
     process.stdout.write(`[claudify] Config already exists at ${configPath}\n`);
     process.stdout.write(`           Use --force to overwrite.\n`);
     return;
@@ -69,7 +70,7 @@ function cmdInit(): void {
   };
 
   writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-  process.stdout.write(`[claudify] Config created at ${configPath}\n`);
+  process.stdout.write(`[claudify] Config ${force ? "overwritten" : "created"} at ${configPath}\n`);
   process.stdout.write(`           Note: $schema URL resolves only after the package is published to npm.\n`);
 }
 
@@ -161,6 +162,107 @@ function cmdInstall(rest: string[]): void {
   process.stdout.write(`[claudify] Written to ${settingsPath}\n`);
 }
 
+function cmdStatus(): void {
+  const SCOPES: Array<{ label: string; path: string }> = [
+    { label: "user",    path: join(homedir(), ".claude", "settings.json") },
+    { label: "project", path: join(process.cwd(), ".claude", "settings.json") },
+    { label: "local",   path: join(process.cwd(), ".claude", "settings.local.json") },
+  ];
+
+  process.stdout.write("\n── Installed hooks ──────────────────────────\n");
+  for (const { label, path } of SCOPES) {
+    if (!existsSync(path)) continue;
+    const settings = readSettingsJson(path);
+    const hooks = settings["hooks"] as Record<string, unknown[]> ?? {};
+    const installed = Object.entries(hooks)
+      .filter(([, groups]) =>
+        (groups as Array<{ hooks?: Array<{ command?: string }> }>)
+          .some((g) => g.hooks?.some((h) => h.command === "claudify"))
+      )
+      .map(([event]) => event);
+
+    if (installed.length > 0) {
+      process.stdout.write(`  [${label}] ${path}\n`);
+      for (const event of installed) {
+        process.stdout.write(`    • ${event}\n`);
+      }
+    }
+  }
+
+  const configCandidates = getConfigCandidates(process.cwd());
+
+  process.stdout.write("\n── Config file ──────────────────────────────\n");
+  let activeConfig: string | null = null;
+  for (const p of configCandidates) {
+    if (existsSync(p)) { activeConfig = p; break; }
+  }
+  process.stdout.write(activeConfig
+    ? `  ${activeConfig}\n`
+    : `  None found — using built-in defaults\n`
+  );
+
+  process.stdout.write("\n── CLAUDIFY_DISABLE ─────────────────────────\n");
+  process.stdout.write(process.env["CLAUDIFY_DISABLE"] === "1"
+    ? `  Set — notifications are currently disabled\n`
+    : `  Not set — notifications are active\n`
+  );
+
+  process.stdout.write("\n");
+}
+
+function cmdUninstall(rest: string[]): void {
+  const scopeArg = getRest(rest, "--scope") ?? "user";
+  const eventsArg = getRest(rest, "--events");
+
+  const settingsPath = resolveSettingsPath(scopeArg);
+  const settings = readSettingsJson(settingsPath);
+  const hooks = settings["hooks"] as Record<string, unknown[]> ?? {};
+
+  const events = eventsArg
+    ? eventsArg.split(",").map((e) => e.trim()).filter(Boolean)
+    : Object.keys(hooks);
+
+  let removed = 0;
+
+  for (const event of events) {
+    const existing = hooks[event] as Array<{ hooks?: Array<{ command?: string }> }> | undefined;
+    if (!existing) {
+      process.stderr.write(`[claudify] No hooks found for "${event}" — skipping.\n`);
+      continue;
+    }
+
+    const filtered = existing
+      .map((group) => ({
+        ...group,
+        hooks: (group.hooks ?? []).filter((h) => h.command !== "claudify"),
+      }))
+      .filter((group) => (group.hooks ?? []).length > 0);
+
+    if (filtered.length === existing.length && !existing.some((g) => g.hooks?.some((h) => h.command === "claudify"))) {
+      process.stderr.write(`[claudify] No claudify hook found for "${event}" — skipping.\n`);
+      continue;
+    }
+
+    if (filtered.length === 0) {
+      delete hooks[event];
+    } else {
+      hooks[event] = filtered;
+    }
+
+    process.stdout.write(`[claudify] Removed hook for "${event}".\n`);
+    removed++;
+  }
+
+  if (removed === 0) {
+    process.stdout.write(`[claudify] Nothing to remove.\n`);
+    return;
+  }
+
+  settings["hooks"] = hooks;
+  writeSettingsJson(settingsPath, settings);
+  process.stdout.write(`[claudify] Written to ${settingsPath}\n`);
+}
+
 function resolveSettingsPath(scope: string): string {
   switch (scope) {
     case "user":
@@ -200,9 +302,13 @@ function writeSettingsJson(filePath: string, data: Record<string, unknown>): voi
 
 const { subcommand, flags, rest } = parseFlags(process.argv);
 
+if (process.env["CLAUDIFY_DISABLE"] === "1" && subcommand === null) {
+  process.exit(0);
+}
+
 switch (subcommand) {
   case "init":
-    cmdInit();
+    cmdInit(rest);
     break;
   case "test":
     cmdTest(flags);
@@ -213,13 +319,19 @@ switch (subcommand) {
   case "install":
     cmdInstall(rest);
     break;
+  case "uninstall":
+    cmdUninstall(rest);
+    break;
+  case "status":
+    cmdStatus();
+    break;
   default: {
     const hookInput = readHookInput();
     const eventName = hookInput.hook_event_name;
 
     if (!eventName) process.exit(0);
 
-    const { options, enabled } = resolveOptions(eventName, flags);
+    const { options, enabled } = resolveOptions(eventName, flags, hookInput.cwd);
 
     if (!enabled) process.exit(0);
 

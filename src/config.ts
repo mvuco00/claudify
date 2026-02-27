@@ -1,11 +1,22 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+// Exposed so cmdStatus can read the same search order
+export function getConfigCandidates(cwd?: string): string[] {
+  const envPath = process.env["CLAUDIFY_CONFIG"];
+  if (envPath) return [envPath];
+  const home = homedir();
+  return [
+    ...(cwd ? [join(cwd, ".claudify.json")] : []),
+    join(home, ".config", "claudify", "config.json"),
+    join(home, ".claudify.json"),
+  ];
+}
 import { type Config, type EventConfig, type CliFlags } from "./types.js";
 
 const BUILTIN_DEFAULTS: EventConfig = {
   title: "Claude Code",
-  message: "Task completed in {{project_name}}",
   sound: "Glass",
   enabled: true,
 };
@@ -37,8 +48,8 @@ const BUILTIN_EVENTS: Record<string, EventConfig> = {
   },
 };
 
-function loadConfigFile(): Config | null {
-  const candidates = configFileCandidates();
+function loadConfigFile(cwd?: string): Config | null {
+  const candidates = configFileCandidates(cwd);
 
   for (const filePath of candidates) {
     try {
@@ -57,7 +68,7 @@ function loadConfigFile(): Config | null {
   return null;
 }
 
-function configFileCandidates(): string[] {
+function configFileCandidates(cwd?: string): string[] {
   const envPath = process.env["CLAUDIFY_CONFIG"];
   if (envPath) {
     // Explicit path must exist — no fallback
@@ -72,11 +83,7 @@ function configFileCandidates(): string[] {
     return [envPath];
   }
 
-  const home = homedir();
-  return [
-    join(home, ".config", "claudify", "config.json"),
-    join(home, ".claudify.json"),
-  ];
+  return getConfigCandidates(cwd);
 }
 
 function isNotFound(err: unknown): boolean {
@@ -89,9 +96,10 @@ function isNotFound(err: unknown): boolean {
 
 export function resolveOptions(
   eventName: string,
-  flags: CliFlags
+  flags: CliFlags,
+  hookCwd?: string
 ): { options: EventConfig; enabled: boolean } {
-  const fileConfig = loadConfigFile();
+  const fileConfig = loadConfigFile(hookCwd);
   const fileDefaults = fileConfig?.defaults ?? {};
   const fileEvent = fileConfig?.events?.[eventName] ?? {};
   const builtinEvent = BUILTIN_EVENTS[eventName] ?? {};

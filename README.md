@@ -29,19 +29,27 @@ Claude Code fires hook events (e.g. `Stop`, `TaskCompleted`) and pipes a JSON pa
 | Command | Description |
 |---|---|
 | `claudify install` | Add hooks to `~/.claude/settings.json` |
+| `claudify uninstall` | Remove claudify hooks from `~/.claude/settings.json` |
+| `claudify status` | Show installed hooks, active config file, and disable state |
 | `claudify test` | Send a test notification |
 | `claudify init` | Create a config file at `~/.config/claudify/config.json` |
 | `claudify sounds` | List available sounds for your platform |
 
-### `install` options
+### `install` / `uninstall` options
 
 | Flag | Default | Description |
 |---|---|---|
-| `--scope user` | ✓ | Write to `~/.claude/settings.json` |
-| `--scope project` | | Write to `.claude/settings.json` (shared, committed) |
-| `--scope local` | | Write to `.claude/settings.local.json` (gitignored) |
-| `--events <csv>` | `Stop,TaskCompleted` | Which events to install hooks for |
-| `--force` | | Overwrite existing claudify hooks |
+| `--scope user` | ✓ | `~/.claude/settings.json` |
+| `--scope project` | | `.claude/settings.json` (shared, committed) |
+| `--scope local` | | `.claude/settings.local.json` (gitignored) |
+| `--events <csv>` | `Stop,TaskCompleted` | Which events to add or remove |
+| `--force` | | Overwrite existing claudify hooks (install only) |
+
+### `init` options
+
+| Flag | Description |
+|---|---|
+| `--force` | Overwrite existing config file with fresh defaults |
 
 ## Configuration
 
@@ -86,9 +94,21 @@ The `$schema` field enables autocompletion in editors that support JSON Schema (
 
 Searched in order — first found wins:
 
-1. `$CLAUDIFY_CONFIG` env var
-2. `~/.config/claudify/config.json`
-3. `~/.claudify.json`
+1. `$CLAUDIFY_CONFIG` env var (must point to an existing file)
+2. `.claudify.json` in the project directory (per-project config)
+3. `~/.config/claudify/config.json`
+4. `~/.claudify.json`
+
+A `.claudify.json` in your project directory takes precedence over the global config, so teams can commit project-specific notification settings alongside their code.
+
+### Environment variables
+
+| Variable | Description |
+|---|---|
+| `$CLAUDIFY_CONFIG` | Path to a custom config file |
+| `$CLAUDIFY_DISABLE=1` | Silence all notifications without uninstalling hooks |
+
+`CLAUDIFY_DISABLE` is useful during meetings, in CI, or any time you want to temporarily mute notifications without touching your settings.
 
 ### Template variables
 
@@ -152,7 +172,12 @@ Then run `claudify test` again.
 
 **Hooks fire but nothing happens**
 
-Hooks run with `async: true` — errors are invisible from Claude Code's perspective. Run `claudify test` directly in your terminal to diagnose.
+Hooks run with `async: true` — errors are invisible from Claude Code's perspective. Start by running:
+
+```sh
+claudify status   # check what's installed and which config is active
+claudify test     # verify the notification pipeline works end to end
+```
 
 ## Local Development
 
