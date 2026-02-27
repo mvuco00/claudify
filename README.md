@@ -5,20 +5,20 @@ Desktop notifications for [Claude Code](https://claude.ai/code) hooks. Supports 
 ## Installation
 
 ```sh
-npm install -g claudify
+npm install -g claudify  # install
+claudify install         # add hooks to Claude Code
+claudify test            # verify it's working
 ```
 
-Then add hooks to your Claude Code settings:
+That's all you need. Notifications will fire automatically from now on.
+
+**Optional — customize titles, messages, and sounds:**
 
 ```sh
-claudify install
+claudify init            # creates ~/.config/claudify/config.json
 ```
 
-Verify it's working:
-
-```sh
-claudify test
-```
+Open the generated file, edit whatever you want, and save. Changes take effect immediately.
 
 ## How It Works
 
@@ -45,7 +45,8 @@ Claude Code fires hook events (e.g. `Stop`, `TaskCompleted`) and pipes a JSON pa
 
 ## Configuration
 
-Run `claudify init` to create a config file, then edit it:
+Configuration is optional — claudify works out of the box with sensible defaults.
+To customize, run `claudify init` to generate a config file, then edit it:
 
 ```json
 {
@@ -55,8 +56,8 @@ Run `claudify init` to create a config file, then edit it:
   },
   "events": {
     "Stop": {
-      "title": "Claude Code",
-      "message": "Task completed in {{project_name}}",
+      "title": "Claude Code — {{project_name}}",
+      "message": "{{last_assistant_message|Task completed}}",
       "sound": "Glass"
     },
     "TaskCompleted": {
@@ -65,7 +66,7 @@ Run `claudify init` to create a config file, then edit it:
       "sound": "Glass"
     },
     "Notification": {
-      "title": "{{title}}",
+      "title": "{{title|Claude is waiting...}}",
       "message": "{{message}}",
       "sound": "Blow"
     },
@@ -103,9 +104,13 @@ Use `{{variable}}` in `title`, `message`, and `subtitle` fields:
 | `{{error}}` | PostToolUseFailure |
 | `{{title}}` | Notification |
 | `{{message}}` | Notification |
-| `{{last_assistant_message}}` | Stop |
+| `{{last_assistant_message}}` | Stop — truncated to 100 chars, newlines stripped |
 
-Unknown variables render as empty string.
+Unknown variables render as empty string. Use `{{variable|fallback}}` to provide a default when a variable is empty:
+
+```json
+"title": "{{title|Claude is waiting...}}"
+```
 
 ### Inline overrides
 

@@ -12,8 +12,8 @@ const BUILTIN_DEFAULTS: EventConfig = {
 
 const BUILTIN_EVENTS: Record<string, EventConfig> = {
   Stop: {
-    title: "Claude Code",
-    message: "Task completed in {{project_name}}",
+    title: "Claude Code — {{project_name}}",
+    message: "{{last_assistant_message|Task completed}}",
     sound: "Glass",
   },
   TaskCompleted: {
@@ -22,7 +22,7 @@ const BUILTIN_EVENTS: Record<string, EventConfig> = {
     sound: "Glass",
   },
   Notification: {
-    title: "{{title}}",
+    title: "{{title|Claude is waiting...}}",
     message: "{{message}}",
     sound: "Blow",
   },

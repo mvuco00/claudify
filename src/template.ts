@@ -15,10 +15,29 @@ function buildVars(input: HookInput): TemplateVars {
     notification_type: input.notification_type ?? "",
     task_id: input.task_id ?? "",
     task_subject: input.task_subject ?? "",
-    last_assistant_message: input.last_assistant_message ?? "",
+    last_assistant_message: humanizeLastMessage(input.last_assistant_message ?? ""),
     tool_name: input.tool_name ?? "",
     error: input.error ?? "",
   };
+}
+
+function truncate(text: string, max: number): string {
+  // Strip newlines so multi-line responses fit on one notification line
+  const flat = text.replace(/\s*\n\s*/g, " ").trim();
+  return flat.length > max ? flat.slice(0, max - 1) + "…" : flat;
+}
+
+// Claude Code sends raw system strings in last_assistant_message.
+// Map known ones to user-friendly equivalents.
+const SYSTEM_STRING_MAP: Record<string, string> = {
+  "waiting for input": "Waiting for your input",
+  "awaiting input": "Waiting for your input",
+};
+
+function humanizeLastMessage(msg: string): string {
+  if (!msg) return "";
+  const normalized = msg.toLowerCase().trim();
+  return SYSTEM_STRING_MAP[normalized] ?? truncate(msg, 100);
 }
 
 function deriveProjectName(cwd: string | undefined): string {
@@ -31,6 +50,10 @@ function deriveProjectName(cwd: string | undefined): string {
 
 export function applyTemplate(template: string, input: HookInput): string {
   const vars = buildVars(input);
-  // Single-pass replacement — prevents double substitution
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? "");
+  // Supports {{variable}} and {{variable|fallback}} syntax.
+  // Single-pass replacement — prevents double substitution.
+  return template.replace(/\{\{(\w+)(?:\|([^}]*))?\}\}/g, (_, key, fallback) => {
+    const value = vars[key] ?? "";
+    return value !== "" ? value : (fallback ?? "");
+  });
 }
