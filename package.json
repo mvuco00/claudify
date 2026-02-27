@@ -1,0 +1,31 @@
+{
+  "name": "claudify",
+  "version": "0.1.0",
+  "description": "Desktop notifications for Claude Code hooks",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "claudify": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "schema.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "postbuild": "node scripts/postbuild.mjs"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "notifications",
+    "hooks"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^25.3.2",
+    "typescript": "^5.9.3"
+  }
+}
