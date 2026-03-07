@@ -6,9 +6,16 @@ import { sendNotification } from "./notify.js";
 import { detectPlatform } from "./platforms/detect.js";
 import { printSounds } from "./sounds.js";
 import { type CliFlags, type NotifyOptions } from "./types.js";
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync, appendFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
+
+function debugLog(data: unknown): void {
+  if (process.env["CLAUDIFY_DEBUG"] !== "1") return;
+  const logPath = join(homedir(), ".claudify-debug.log");
+  const entry = `[${new Date().toISOString()}] ${JSON.stringify(data, null, 2)}\n---\n`;
+  appendFileSync(logPath, entry);
+}
 
 // --- Flag parsing ---
 
@@ -327,6 +334,7 @@ switch (subcommand) {
     break;
   default: {
     const hookInput = readHookInput();
+    debugLog(hookInput);
     const eventName = hookInput.hook_event_name;
 
     if (!eventName) process.exit(0);

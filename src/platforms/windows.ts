@@ -6,9 +6,12 @@ import { type NotifyOptions } from "../types.js";
 export function sendWindows(options: NotifyOptions): void {
   const { title, message } = options;
 
-  // Escape single quotes for PowerShell string literals
-  const safeTitle = title.replace(/'/g, "''");
-  const safeMessage = message.replace(/'/g, "''");
+  // Escape for PowerShell single-quoted string literals.
+  // Strip newlines first — a newline inside '...' breaks out of the string
+  // and the remainder executes as a command (injection vector).
+  const sanitize = (s: string) => s.replace(/[\r\n]+/g, " ").replace(/'/g, "''");
+  const safeTitle = sanitize(title);
+  const safeMessage = sanitize(message);
 
   const script = `
 [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null

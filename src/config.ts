@@ -33,7 +33,7 @@ const BUILTIN_EVENTS: Record<string, EventConfig> = {
     sound: "Glass",
   },
   Notification: {
-    title: "{{title|Claude is waiting...}}",
+    title: "{{title|Claude Code}}",
     message: "{{message}}",
     sound: "Blow",
   },
