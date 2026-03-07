@@ -13,6 +13,7 @@ function buildVars(input: HookInput): TemplateVars {
     title: input.title ?? "",
     message: input.message ?? "",
     notification_type: input.notification_type ?? "",
+    notification_title: NOTIFICATION_TYPE_TITLES[input.notification_type ?? ""] ?? (input.title ?? ""),
     task_id: input.task_id ?? "",
     task_subject: input.task_subject ?? "",
     last_assistant_message: humanizeLastMessage(input.last_assistant_message ?? ""),
@@ -32,6 +33,13 @@ function truncate(text: string, max: number): string {
 const SYSTEM_STRING_MAP: Record<string, string> = {
   "waiting for input": "Waiting for your input",
   "awaiting input": "Waiting for your input",
+};
+
+// Maps notification_type values to friendly titles.
+// "idle_prompt" = Claude is genuinely waiting for user input.
+// Other types (informational, status updates) get no title override — fall back to payload title or "Claude Code".
+const NOTIFICATION_TYPE_TITLES: Record<string, string> = {
+  idle_prompt: "Claude is waiting...",
 };
 
 function humanizeLastMessage(msg: string): string {
